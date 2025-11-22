@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+
+# DB, log
+data/bot.db
+logs/
+*.log
+
+# Yüklənmiş audio/video faylları
+data/downloads/
+*.mp3
+*.webm
+
+# FFmpeg binary paketi
+ffmpeg-8.0-essentials_build/
+
+# VSCode
+.vscode/
