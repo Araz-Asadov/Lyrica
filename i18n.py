@@ -3,7 +3,7 @@ from pathlib import Path
 from functools import lru_cache
 
 LOCALES_DIR = Path("./locales")
-DEFAULT_LANG = "EN"
+DEFAULT_LANG = "az"
 
 @lru_cache(maxsize=16)
 def _load(lang: str) -> dict:

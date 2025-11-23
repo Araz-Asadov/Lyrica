@@ -1,18 +1,30 @@
 from aiogram import Dispatcher
-from . import start, search, favorites, playlists, admin, voice, commands, links, video
+from . import start, search, favorites, playlists, admin, voice, commands
 
 
 def setup_routers(dp: Dispatcher):
-    # Order matters: links should be checked before search
     for r in (
         start.router,
-        links.router,  # Handle links first
-        video.router,  # Handle videos
-        voice.router,  # Handle voice messages
-        search.router,  # Handle text queries
+        search.router,
         favorites.router,
         playlists.router,
         admin.router,
+        voice.router,
+        commands.router,
+    ):
+        dp.include_router(r)
+from aiogram import Dispatcher
+from . import start, search, favorites, playlists, admin, voice, commands
+
+
+def setup_routers(dp: Dispatcher):
+    for r in (
+        start.router,
+        search.router,
+        favorites.router,
+        playlists.router,
+        admin.router,
+        voice.router,
         commands.router,
     ):
         dp.include_router(r)

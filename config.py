@@ -13,21 +13,16 @@ class Settings(BaseModel):
         default=[int(x.strip()) for x in os.getenv("ADMIN_IDS", "7787374541").split(",") if x.strip().isdigit()]
     )
 
-    # 💾 PostgreSQL DATABASE
-    DATABASE_URL: str = Field(
-        default=os.getenv(
-            "DATABASE_URL",
-            "postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/lyrica_db"
-        )
-    )
+    # 💾 Verilənlər bazası
+    DATABASE_URL: str = Field(default=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./data/bot.db"))
 
     # 📂 Fayl yükləmə yolları
     DOWNLOAD_DIR: str = Field(default=os.getenv("DOWNLOAD_DIR", "./data/downloads"))
-    GENIUS_API_TOKEN: str = Field(default=os.getenv("GENIUS_API_TOKEN", ""))
+    GENIUS_API_TOKEN: str = Field(default=os.getenv("GENIUS_API_TOKEN", "1L1V4NEQIr1si6sfsWvgYzQ4lZ8iSh3q05D39BTCHwk2wzL9Jah-kdEf7o80eGVq"))
     VOSK_MODEL_PATH: str = Field(default=os.getenv("VOSK_MODEL_PATH", ""))
 
-    # 🧪 Test və monitor parametrləri
-    TEST_MODE: bool = Field(default=bool(int(os.getenv("TEST_MODE", "0"))))
+    # 🧪 Test və monitor parametrləri (yeni)
+    TEST_MODE: bool = Field(default=bool(int(os.getenv("TEST_MODE", "0"))))  # 1 və ya 0 şəklində
     ENABLE_MONITOR: bool = Field(default=bool(int(os.getenv("ENABLE_MONITOR", "1"))))
     LOG_PATH: str = Field(default=os.getenv("LOG_PATH", "./logs/lyrica.log"))
 
@@ -44,12 +39,7 @@ Path("./data").mkdir(parents=True, exist_ok=True)
 Path("./logs").mkdir(parents=True, exist_ok=True)
 
 
-# 🧩 Debug üçün qısa status
-try:
-    print(
-        f"🟢 Lyrica Config Loaded | TEST_MODE={settings.TEST_MODE} | LOG={settings.LOG_PATH} | Monitor={'On' if settings.ENABLE_MONITOR else 'Off'}"
-    )
-except UnicodeEncodeError:
-    print(
-        f"[OK] Lyrica Config Loaded | TEST_MODE={settings.TEST_MODE} | LOG={settings.LOG_PATH} | Monitor={'On' if settings.ENABLE_MONITOR else 'Off'}"
-    )
+# 🧩 Debug məqsədilə konsolda qısa status
+print(
+    f"🟢 Lyrica Config Loaded | TEST_MODE={settings.TEST_MODE} | LOG={settings.LOG_PATH} | Monitor={'On' if settings.ENABLE_MONITOR else 'Off'}"
+)

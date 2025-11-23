@@ -21,40 +21,22 @@ import os
 
 router = Router()
 
-# 🔐 User → Song lyrics memory
+# 🔐 user+song əsaslı söz yaddaşı
+# açar: (telegram_id, youtube_id) -> lyrics
 user_lyrics_memory: dict[tuple[int, str], str] = {}
 
 
-async def _get_user_lang(user_id: int) -> str:
-    """Get user language from database with cache"""
-    from utils.cache import get_cached_lang, set_cached_lang
-    
-    # Check cache first
-    cached_lang = get_cached_lang(user_id)
-    if cached_lang:
-        return cached_lang
-    
-    # Query database
-    async with SessionLocal() as s:
-        user = (await s.execute(select(User).where(User.tg_id == user_id))).scalars().first()
-        lang = user.language if user else "az"
-        set_cached_lang(user_id, lang)  # Cache it
-        return lang
-
-
 # =================================================================
-# 🔍 SONG SEARCH
+# 🔍 MAHNİ AXTARIŞI (Komanda olmayan bütün textlər üçün)
 # =================================================================
 @router.message(F.text & ~F.via_bot & ~F.text.startswith("/"))
 async def on_query(m: Message):
-    # Skip if it's a link (handled by links.py)
-    from services.social_media import is_tiktok_link, is_instagram_link, is_youtube_link
-    text = m.text.strip()
-    if is_tiktok_link(text) or is_instagram_link(text) or is_youtube_link(text):
-        return  # Let links handler process it
-    
-    # Get user language (cached)
-    lang = await _get_user_lang(m.from_user.id)
+    async with SessionLocal() as s:
+        user = (
+            await s.execute(select(User).where(User.tg_id == m.from_user.id))
+        ).scalars().first()
+
+    lang = user.language if user and getattr(user, "language", None) else "az"
 
     if not has_ffmpeg():
         await m.answer(t(lang, "no_ffmpeg"))
@@ -63,28 +45,18 @@ async def on_query(m: Message):
     await m.answer(t(lang, "downloading"))
 
     try:
+        # 🔹 Sürətli yükləmə üçün fast_mode istifadə oluna bilər
         yt: YTResult = await search_and_download(m.text.strip())
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Search error for query '{m.text.strip()}': {e}", exc_info=True)
-        
-        error_msg = str(e)
-        # Provide user-friendly error messages
-        if "tapılmadı" in error_msg.lower() or "not found" in error_msg.lower():
-            await m.answer(f"❌ {t(lang, 'song_not_found')}\n\n🔍 Sorğu: {m.text.strip()}")
-        else:
-            await m.answer(f"❌ {t(lang, 'error_search_download')}\n\n{error_msg}")
+    except Exception:
+        await m.answer("❌ Axtarış/yükləmə zamanı xəta baş verdi.")
         return
 
-    # Optimized: Single database session for all operations
+    # DB-yə yaz
     async with SessionLocal() as s:
-        # Get user (don't create if not exists - lazy creation)
-        user = (await s.execute(select(User).where(User.tg_id == m.from_user.id))).scalars().first()
-        user_id = user.id if user else None
-        
-        # Get or create song
-        song = (await s.execute(select(Song).where(Song.youtube_id == yt.youtube_id))).scalars().first()
+        song = (
+            await s.execute(select(Song).where(Song.youtube_id == yt.youtube_id))
+        ).scalars().first()
+
         if not song:
             song = Song(
                 youtube_id=yt.youtube_id,
@@ -95,35 +67,39 @@ async def on_query(m: Message):
                 thumbnail=yt.thumbnail,
             )
             s.add(song)
-            await s.flush()  # Flush to get song.id without commit
+            await s.commit()
 
-        # Add request log (only if user exists - skip if not to avoid errors)
-        if user_id:
-            s.add(RequestLog(
-                user_id=user_id,
+        s.add(
+            RequestLog(
+                user_id=(user.id if user else None),
                 query=m.text.strip(),
                 via_voice=False,
                 matched_song_id=song.id,
-            ))
-        await s.commit()  # Single commit for all operations
+            )
+        )
+        await s.commit()
 
-    msg = t(lang, "search_result", title=yt.title, artist=yt.artist, duration=yt.duration)
-    await m.answer(msg, reply_markup=song_actions(_lang(lang), yt.youtube_id))
-
+    msg = t(
+        lang,
+        "search_result",
+        title=yt.title,
+        artist=yt.artist,
+        duration=yt.duration,
+    )
+    await m.answer(msg, reply_markup=socket_song_actions(lang, yt.youtube_id))
 
 
 # =================================================================
-# 🎵 DOWNLOAD SONG
+# 🎵 MAHNINI ENDİR
 # =================================================================
 @router.callback_query(F.data.startswith("song:dl:"))
 async def on_download(c: CallbackQuery):
-    lang = await _get_user_lang(c.from_user.id)
-    await c.answer(t(lang, "sending"))
-
     yt_id = c.data.split(":")[-1]
 
     async with SessionLocal() as s:
-        song = (await s.execute(select(Song).where(Song.youtube_id == yt_id))).scalars().first()
+        song = (
+            await s.execute(select(Song).where(Song.youtube_id == yt_id))
+        ).scalars().first()
 
         if song:
             song.play_count += 1
@@ -131,104 +107,103 @@ async def on_download(c: CallbackQuery):
             await s.commit()
 
     if not song:
-        await c.message.answer("❌ Song not found.")
+        await c.answer("Song not found", show_alert=True)
         return
 
     try:
         file = FSInputFile(song.file_path, filename=f"{song.title}.mp3")
         await c.message.answer_document(file)
     except Exception as e:
-        lang = await _get_user_lang(c.from_user.id)
-        await c.message.answer(t(lang, "sending_error", error=str(e)))
+        await c.message.answer(f"❌ Göndərmə xətası: {e}")
 
+    await c.answer()
 
 
 # =================================================================
-# 💬 LYRICS
+# 💬 MAHNININ SÖZLƏRİ
 # =================================================================
 @router.callback_query(F.data.startswith("song:ly:"))
 async def on_lyrics(c: CallbackQuery):
-    await c.answer()
-
     yt_id = c.data.split(":")[-1]
 
     async with SessionLocal() as s:
-        song = (await s.execute(select(Song).where(Song.youtube_id == yt_id))).scalars().first()
-        user = (await s.execute(select(User).where(User.tg_id == c.from_user.id))).scalars().first()
+        song = (
+            await s.execute(select(Song).where(Song.youtube_id == yt_id))
+        ).scalars().first()
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
 
-    lang = user.language if user else "en"
+    lang = user.language if user and getattr(user, "language", None) else "az"
 
     if not song:
-        await c.message.answer(t(lang, "song_not_found"))
+        await c.answer("Song not found", show_alert=True)
         return
 
     lyrics = await get_lyrics(song.title, song.artist)
 
     if lyrics:
         user_lyrics_memory[(c.from_user.id, yt_id)] = lyrics
-
         await c.message.answer(lyrics)
-        translate_prompts = {
-            "az": "🌍 Sözləri tərcümə et:",
-            "en": "🌍 Translate the lyrics:",
-            "ru": "🌍 Перевести текст:"
-        }
         await c.message.answer(
-            translate_prompts.get(lang, translate_prompts["en"]),
-            reply_markup=_translate_button(yt_id)
+            "🔁 Tərcümə etmək üçün:",
+            reply_markup=_translate_button(yt_id),
         )
     else:
         await c.message.answer(t(lang, "lyrics_not_found"))
 
+    await c.answer()
 
 
 # =================================================================
-# 🌐 TRANSLATE
+# 🌐 TƏRCÜMƏ
 # =================================================================
 @router.callback_query(F.data.startswith("song:tr:"))
 async def on_translate(c: CallbackQuery):
-    await c.answer()
-
     yt_id = c.data.split(":")[-1]
     text = user_lyrics_memory.get((c.from_user.id, yt_id))
 
+    # İstifadəçi dilini götürək
     async with SessionLocal() as s:
-        user = (await s.execute(select(User).where(User.tg_id == c.from_user.id))).scalars().first()
-
-    lang = user.language if user else "en"
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
+    lang = user.language if user and getattr(user, "language", None) else "az"
 
     if not text:
-        await c.message.answer(t(lang, "open_lyrics_first"))
+        await c.message.answer("❗ Əvvəl sözləri aç (Sözlər düyməsi).")
+        await c.answer()
         return
 
-    await c.message.answer(t(lang, "translating"))
+    await c.message.answer("🔄 Tərcümə olunur...")
 
     try:
         translated = GoogleTranslator(source="auto", target=lang).translate(text)
     except Exception as e:
-        await c.message.answer(t(lang, "translation_error", error=str(e)))
+        await c.message.answer(f"❌ Tərcümə xətası: {e}")
         return
 
-    await c.message.answer(t(lang, "translation", text=translated))
-
+    await c.message.answer(f"🇬🇧 ➜ {lang.upper()}\n\n{translated}")
+    await c.answer()
 
 
 # =================================================================
-# ⭐ FAVORITES
+# ⭐ FAVORİTLƏR
 # =================================================================
 @router.callback_query(F.data.startswith("song:fav:"))
 async def on_fav(c: CallbackQuery):
-    await c.answer()
-
     yt_id = c.data.split(":")[-1]
 
     async with SessionLocal() as s:
-        user = (await s.execute(select(User).where(User.tg_id == c.from_user.id))).scalars().first()
-        song = (await s.execute(select(Song).where(Song.youtube_id == yt_id))).scalars().first()
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
+        song = (
+            await s.execute(select(Song).where(Song.youtube_id == yt_id))
+        ).scalars().first()
 
         if not (user and song):
-            lang = await _get_user_lang(c.from_user.id)
-            await c.message.answer(t(lang, "error_occurred"))
+            await c.answer("⚠️ Error")
             return
 
         existing = (
@@ -243,95 +218,116 @@ async def on_fav(c: CallbackQuery):
         if existing:
             await s.delete(existing)
             await s.commit()
-            lang = await _get_user_lang(c.from_user.id)
-            await c.message.answer(t(lang, "fav_removed"))
+            await c.answer(_lang(user.language)["fav_removed"])
         else:
             s.add(Favorite(user_id=user.id, song_id=song.id))
             await s.commit()
-            lang = await _get_user_lang(c.from_user.id)
-            await c.message.answer(t(lang, "fav_added"))
-
+            await c.answer(_lang(user.language)["fav_added"])
 
 
 # =================================================================
-# 🎚️ EFFECTS MENU
+# 🎚️ EFFEKT MENYUSU
 # =================================================================
 @router.callback_query(F.data.startswith("song:fx:"))
 async def on_effects_menu(c: CallbackQuery):
-    await c.answer()
-
+    # İstifadəçi dilini götürüb, çoxdilli efekt menyusu açaq
     async with SessionLocal() as s:
-        user = (await s.execute(select(User).where(User.tg_id == c.from_user.id))).scalars().first()
-
-    lang = user.language if user else "en"
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
+    lang = user.language if user and getattr(user, "language", None) else "az"
 
     await c.message.answer(
         t(lang, "choose_effect"),
-        reply_markup=effects_menu(_lang(lang))
+        reply_markup=effects_menu(_lang(lang)),
     )
-
+    await c.answer()
 
 
 # =================================================================
-# 🎚 APPLY EFFECT
+# 🎚️ EFFEKT TƏTBİQİ
 # =================================================================
 @router.callback_query(F.data.startswith("fx:"))
 async def on_effect_apply(c: CallbackQuery):
-    lang = await _get_user_lang(c.from_user.id)
-    await c.answer(t(lang, "processing"))
-
     parts = c.data.split(":")
     kind, val = parts[1], parts[2]
 
     async with SessionLocal() as s:
-        song = (await s.execute(select(Song).order_by(Song.last_played.desc()))).scalars().first()
-        user = (await s.execute(select(User).where(User.tg_id == c.from_user.id))).scalars().first()
+        song = (
+            await s.execute(select(Song).order_by(Song.last_played.desc()))
+        ).scalars().first()
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
 
-    lang = await _get_user_lang(c.from_user.id)
+    lang = user.language if user and getattr(user, "language", None) else "az"
+
     if not song:
-        await c.message.answer(t(lang, "no_recent_song"))
+        await c.answer("No context song", show_alert=True)
         return
 
     if not has_ffmpeg():
         await c.message.answer(t(lang, "no_ffmpeg"))
+        await c.answer()
         return
 
-    effects = {}
+    effects: dict = {}
 
-    if kind == "bass": effects["bass_db"] = float(val)
-    if kind == "treble": effects["treble_db"] = float(val)
-    if kind == "reverb": effects["reverb"] = True
-    if kind == "echo": effects["echo"] = True
-    if kind == "pitch": effects["pitch_semitones"] = float(val)
-    if kind == "speed": effects["speed"] = float(val)
+    if kind == "bass":
+        effects["bass_db"] = float(val)
+    if kind == "treble":
+        effects["treble_db"] = float(val)
+    if kind == "reverb":
+        effects["reverb"] = True
+    if kind == "echo":
+        effects["echo"] = True
+    if kind == "pitch":
+        effects["pitch_semitones"] = float(val)
+    if kind == "speed":
+        effects["speed"] = float(val)
 
-    new_path = apply_effects(song.file_path, None, effects)
+    # ⚠️ DIQQƏT: Option B – apply_effects özü unikal fayl yaradır və yol qaytarır
+    try:
+        new_path = apply_effects(song.file_path, None, effects)
+    except Exception as e:
+        await c.message.answer(f"❌ Effekt tətbiq xətası: {e}")
+        await c.answer()
+        return
 
     if not os.path.exists(new_path):
-        lang = await _get_user_lang(c.from_user.id)
-        await c.message.answer(t(lang, "failed_generate"))
+        await c.message.answer("❌ Effekt faylı yaradılmadı.")
+        await c.answer()
         return
 
     file = FSInputFile(new_path, filename=os.path.basename(new_path))
     await c.message.answer_document(file)
-
+    await c.answer()
 
 
 # =================================================================
-# 🌍 UNIVERSAL TRANSLATE BUTTON
+# 🔘 Tərcümə düyməsi
 # =================================================================
 def _translate_button(yt_id: str):
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🌍 Translate", callback_data=f"song:tr:{yt_id}")]
+            [
+                InlineKeyboardButton(
+                    text="🇦🇿 Tərcümə et",
+                    callback_data=f"song:tr:{yt_id}",
+                )
+            ]
         ]
     )
 
 
-
 # =================================================================
-# LANGUAGE LOADER
+# 🌍 Dil funksiyaları + helper
 # =================================================================
-def _lang(code: str):
+def _lang(code: str) -> dict:
     from i18n import _load
     return _load(code)
+
+
+def socket_song_actions(lang_code: str, yt_id: str):
+    """song_actions üçün helper — birbaşa lang_code verib dict yükləyirik."""
+    return song_actions(_lang(lang_code), yt_id)

@@ -4,11 +4,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def main_menu(lang_texts: dict, is_admin: bool = False):
     """
-    Modern və gözəl əsas menyu — tam format
+    Əsas menyu — Playlist tamamilə çıxarılıb.
     """
     kb = InlineKeyboardBuilder()
 
-    # Əsas funksiyalar - 2x2 grid
+    # 🔍 Axtarış + ⭐ Sevimlilər
     kb.row(
         InlineKeyboardButton(
             text=lang_texts.get("btn_search", "🔍 Axtarış"),
@@ -20,15 +20,11 @@ def main_menu(lang_texts: dict, is_admin: bool = False):
         )
     )
 
-    # Yardımçı funksiyalar
+    # 🌐 Dil seçimi
     kb.row(
         InlineKeyboardButton(
             text=lang_texts.get("btn_lang", "🌐 Dil"),
             callback_data="menu:lang"
-        ),
-        InlineKeyboardButton(
-            text="ℹ️ Kömək" if lang_texts.get("btn_lang", "").startswith("🌐") else "ℹ️ Help",
-            callback_data="menu:help"
         )
     )
 
@@ -46,10 +42,15 @@ def main_menu(lang_texts: dict, is_admin: bool = False):
 
 def song_actions(lang_dict: dict, yt_id: str):
     """
-    Modern mahnı əməliyyat düymələri — tam format
+    Mahnı üçün əməliyyat düymələri:
+    - Yüklə
+    - Sözlər
+    - Tərcümə et
+    - Favoritə əlavə et
+    - Effektlər
+    ❌ Playlist yoxdur
     """
     return InlineKeyboardMarkup(inline_keyboard=[
-        # Əsas əməliyyatlar - 2x2 grid
         [
             InlineKeyboardButton(
                 text=lang_dict.get("download", "⬇️ Yüklə"),
@@ -62,15 +63,16 @@ def song_actions(lang_dict: dict, yt_id: str):
         ],
         [
             InlineKeyboardButton(
-                text=lang_dict.get("translate", "🌍 Tərcümə"),
+                text=lang_dict.get("translate", "🇦🇿 Tərcümə et"),
                 callback_data=f"song:tr:{yt_id}"
-            ),
+            )
+        ],
+        [
             InlineKeyboardButton(
-                text=lang_dict.get("favorite", "⭐ Sevimli"),
+                text=lang_dict.get("favorite", "⭐ Favoritə əlavə et"),
                 callback_data=f"song:fav:{yt_id}"
             )
         ],
-        # Effektlər
         [
             InlineKeyboardButton(
                 text=lang_dict.get("effects", "🎚️ Effektlər"),
