@@ -6,6 +6,7 @@ from sqlalchemy import select
 from db import SessionLocal
 from models import User, Song, Favorite
 from keyboards import song_actions
+<<<<<<< HEAD
 from i18n import t
 
 router = Router()
@@ -24,6 +25,32 @@ async def cmd_help(m: Message):
     lang = user.language if user else "az"
 
     await m.answer(t(lang, "help_text"))
+=======
+from i18n import _load, t
+
+router = Router()
+
+# ============================================================
+# 🧩 Dil yükləyici
+# ============================================================
+def _lang(code: str):
+    return _load(code)
+
+
+# ============================================================
+# ℹ️ /help — kömək komandası
+# ============================================================
+@router.message(Command("help"))
+async def cmd_help(m: Message):
+    await m.answer(
+        "📘 Kömək\n\n"
+        "/start – Başlat\n"
+        "/lang – Dil seçimi\n"
+        "/favorites – Sevimlilər\n"
+        "/help – Bu menyu\n\n"
+        "Sadəcə mahnının adını yaz və endir!"
+    )
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 
 
 # ============================================================
@@ -42,10 +69,19 @@ async def cmd_lang(m: Message):
 
 
 # ============================================================
+<<<<<<< HEAD
 # ⭐ /favorites — sevimlilər
 # ============================================================
 @router.message(Command("favorites"))
 async def show_favorites(m: Message):
+=======
+# 🎵 /favorites + “⭐ Sevimlilər”
+# ============================================================
+@router.message(Command("favorites"))
+@router.message(F.text.in_(["⭐ Sevimlilər"]))
+async def show_favorites(m: Message):
+
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == m.from_user.id))
@@ -55,7 +91,11 @@ async def show_favorites(m: Message):
             await m.answer("⚠️ Zəhmət olmasa əvvəl /start yaz.")
             return
 
+<<<<<<< HEAD
         lang = user.language
+=======
+        lang = user.language or "az"
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 
         fav_songs = (
             await s.execute(
@@ -67,7 +107,11 @@ async def show_favorites(m: Message):
         ).scalars().all()
 
     if not fav_songs:
+<<<<<<< HEAD
         await m.answer(t(lang, "favorites_empty"))
+=======
+        await m.answer("⭐ Sevimlilərə heç nə əlavə olunmayıb.")
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
         return
 
     btns = [
@@ -75,6 +119,7 @@ async def show_favorites(m: Message):
         for song in fav_songs
     ]
 
+<<<<<<< HEAD
     await m.answer(t(lang, "favorites_list"), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
 
 
@@ -83,12 +128,27 @@ async def show_favorites(m: Message):
 # ============================================================
 @router.callback_query(F.data == "menu:favorites")
 async def menu_favorites(c: CallbackQuery):
+=======
+    await m.answer("🎶 Sevimli mahnıların:", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+
+
+# ============================================================
+# 🎵 Start menyusu → menu:favorites
+# ============================================================
+@router.callback_query(F.data == "menu:favorites")
+async def menu_fav(c: CallbackQuery):
+
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == c.from_user.id))
         ).scalars().first()
 
+<<<<<<< HEAD
         lang = user.language
+=======
+        lang = user.language if user else "az"
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 
         fav_songs = (
             await s.execute(
@@ -100,7 +160,11 @@ async def menu_favorites(c: CallbackQuery):
         ).scalars().all()
 
     if not fav_songs:
+<<<<<<< HEAD
         await c.message.edit_text(t(lang, "favorites_empty"))
+=======
+        await c.message.answer("⭐ Sevimlilərdə mahnı yoxdur.")
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
         await c.answer()
         return
 
@@ -109,12 +173,20 @@ async def menu_favorites(c: CallbackQuery):
         for song in fav_songs
     ]
 
+<<<<<<< HEAD
     await c.message.edit_text(t(lang, "favorites_list"), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+=======
+    await c.message.edit_text("🎶 Sevimli mahnıların:", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
     await c.answer()
 
 
 # ============================================================
+<<<<<<< HEAD
 # 🎧 Sevimlilər → Mahnı seçildi
+=======
+# 🎧 Sevimlilər → mahnı seçildi
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 # ============================================================
 @router.callback_query(F.data.startswith("favopen:"))
 async def open_favorite_song(c: CallbackQuery):
@@ -133,10 +205,18 @@ async def open_favorite_song(c: CallbackQuery):
         await c.answer("⚠️ Mahnı tapılmadı.", show_alert=True)
         return
 
+<<<<<<< HEAD
     lang = user.language
 
     await c.message.answer(
         f"🎧 {song.title}\n👤 {song.artist}",
         reply_markup=song_actions(lang, song.youtube_id)
+=======
+    lang = user.language or "az"
+
+    await c.message.answer(
+        f"🎧 {song.title}\n👤 {song.artist}",
+        reply_markup=song_actions(_lang(lang), song.youtube_id)
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
     )
     await c.answer()

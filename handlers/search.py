@@ -330,4 +330,8 @@ def _lang(code: str) -> dict:
 
 def socket_song_actions(lang_code: str, yt_id: str):
     """song_actions üçün helper — birbaşa lang_code verib dict yükləyirik."""
+<<<<<<< HEAD
     return song_actions(_lang(lang_code), yt_id)
+=======
+    return song_actions(_lang(lang_code), yt_id)
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

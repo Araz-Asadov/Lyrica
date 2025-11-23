@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "start_message": "🎵 LyricaBot-a xoş gəlmisiniz!\n\nMən sizin musiqi asistentinizəm. Mənimlə:\n\n🎯 Mahnı tapmaq üçün:\n• Mahnı adı yazın\n• YouTube linki göndərin\n• TikTok linki göndərin\n• Instagram/Reels linki göndərin\n• Video və ya səs mesajı göndərin\n\n🎼 Musiqi notları:\n• /not əmrindən sonra musiqi göndərin\n\n⭐ Favoritlər:\n• Tapdığınız mahnıları favoritlərə əlavə edin\n\nAşağıdakı düymələrdən istifadə edin və ya /help yazın:",
 
   "start_welcome": "Salam {name}! 🎵 LyricaBot-a xoş gəldin!",
@@ -51,4 +52,40 @@
   "broadcast_started": "📢 Broadcast göndərilməyə başlandı.",
 
   "voice_prompt": "🎙 Səs mesajı göndərin (Vosk quraşdırılıbsa)."
+=======
+  "start_welcome": "Salam! 🎵 LyricaBot-a xoş gəlmisiniz.",
+  "start_menu": "Aşağıdan seçim edin:",
+  "btn_search": "🔎 Axtar",
+  "btn_favorites": "⭐ Favoritlər",
+  "btn_playlists": "📻 Playlistlər",
+  "btn_admin": "🛠 Admin",
+  "btn_lang": "🌐 Dil",
+  "prompt_search": "Mahnı adını, müğənnini və ya YouTube linkini göndərin.",
+  "search_result": "Tapılan: <b>{title}</b>\nMüəllif: {artist}\n⏱ {duration}s",
+  
+  "download": "⬇️ Yüklə",
+  "lyrics": "📝 Sözlər",
+  "favorite": "⭐ Favoritə əlavə et",
+  "playlist": "➕ Playlist-ə əlavə et",
+  "effects": "🎨 Effektlər",
+  "choose_effect": "Effekt seçin:",
+  
+  "fav_empty": "Favoritlər boşdur.",
+  "fav_added": "Favoritlərə əlavə olundu.",
+  "fav_removed": "Favoritdən silindi.",
+  "pl_empty": "Sizin playlist yoxdur. /newplaylist ilə yaradın.",
+  "pl_created": "Playlist yaradıldı: {name}",
+  "pl_added": "Mahnı playlist-ə əlavə olundu.",
+  "effects_applied": "Effektlər tətbiq olundu.",
+  "admin_only": "Bu bölmə adminlər üçündür.",
+  "admin_stats": "İstifadəçilər: {users}\nMahnılar: {songs}\nSorğular: {reqs}",
+  "broadcast_started": "Broadcast başlatıldı.",
+  "set_language": "Dil seçin:",
+  "lang_set": "Dil dəyişdirildi: {lang}",
+  "voice_prompt": "Səs mesajı göndərin (opsional: Vosk quraşdırılmalıdır).",
+  "lyrics_not_found": "Mahnı sözləri tapılmadı.",
+  "downloading": "Yüklənir, xahiş olunur gözləyin...",
+  "choose_playlist": "Playlist seçin:",
+  "no_ffmpeg": "FFmpeg tapılmadı, zəhmət olmasa PATH-ə əlavə edin."
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 }

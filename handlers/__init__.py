@@ -27,4 +27,8 @@ def setup_routers(dp: Dispatcher):
         voice.router,
         commands.router,
     ):
+<<<<<<< HEAD
         dp.include_router(r)
+=======
+        dp.include_router(r)
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

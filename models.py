@@ -19,7 +19,11 @@ class Song(Base):
     youtube_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(300))
     artist: Mapped[str] = mapped_column(String(200), default="")
+<<<<<<< HEAD
     duration: Mapped[int] = mapped_column(Integer, default=0)
+=======
+    duration: Mapped[int] = mapped_column(Integer, default=0)  # seconds
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
     file_path: Mapped[str] = mapped_column(String(500))
     thumbnail: Mapped[str] = mapped_column(String(500), default="")
     views: Mapped[int] = mapped_column(Integer, default=0)
@@ -62,4 +66,8 @@ class RequestLog(Base):
     query: Mapped[str] = mapped_column(Text)
     via_voice: Mapped[bool] = mapped_column(Boolean, default=False)
     matched_song_id: Mapped[int | None] = mapped_column(ForeignKey("songs.id"), nullable=True)
+<<<<<<< HEAD
     created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
+=======
+    created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

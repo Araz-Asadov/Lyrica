@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "start_message": "🎵 Welcome to LyricaBot!\n\nI'm your music assistant. With me you can:\n\n🎯 To find songs:\n• Type a song name\n• Send a YouTube link\n• Send a TikTok link\n• Send an Instagram/Reels link\n• Send a video or voice message\n\n🎼 Music notes:\n• Send /not and then send any music\n\n⭐ Favorites:\n• Add the songs you find to your favorites\n\nUse the buttons below or type /help:",
 
   "start_welcome": "Hello {name}! 🎵 Welcome to LyricaBot.",
@@ -49,4 +50,40 @@
   "broadcast_started": "📢 Broadcast started.",
 
   "voice_prompt": "🎙 Send a voice message (if Vosk is installed)."
+=======
+  "start_welcome": "Hello! 🎵 Welcome to LyricaBot.",
+  "start_menu": "Choose an option:",
+  "btn_search": "🔎 Search",
+  "btn_favorites": "⭐ Favorites",
+  "btn_playlists": "📻 Playlists",
+  "btn_admin": "🛠 Admin",
+  "btn_lang": "🌐 Language",
+  "prompt_search": "Send a song name, artist, or YouTube link.",
+  "search_result": "Found: <b>{title}</b>\nArtist: {artist}\n⏱ {duration}s",
+  
+  "download": "⬇️ Download",
+  "lyrics": "📝 Lyrics",
+  "favorite": "⭐ Add to favorites",
+  "playlist": "➕ Add to playlist",
+  "effects": "🎨 Effects",
+  "choose_effect": "Choose an effect:",
+  
+  "fav_empty": "No favorites yet.",
+  "fav_added": "Added to favorites.",
+  "fav_removed": "Removed from favorites.",
+  "pl_empty": "No playlists yet. Create with /newplaylist.",
+  "pl_created": "Playlist created: {name}",
+  "pl_added": "Added to playlist.",
+  "effects_applied": "Effects applied.",
+  "admin_only": "Admins only.",
+  "admin_stats": "Users: {users}\nSongs: {songs}\nRequests: {reqs}",
+  "broadcast_started": "Broadcast started.",
+  "set_language": "Choose language:",
+  "lang_set": "Language set to: {lang}",
+  "voice_prompt": "Send a voice message (optional: requires Vosk).",
+  "lyrics_not_found": "Lyrics not found.",
+  "downloading": "Downloading, please wait...",
+  "choose_playlist": "Choose a playlist:",
+  "no_ffmpeg": "FFmpeg not found, please add to PATH."
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 }

@@ -131,4 +131,8 @@ def _clean_xml(text: str) -> str:
     text = text.replace("&#39;", "'")
     text = text.replace("&quot;", '"')
     text = re.sub(r"\s{2,}", " ", text)
+<<<<<<< HEAD
     return text.strip()
+=======
+    return text.strip()
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

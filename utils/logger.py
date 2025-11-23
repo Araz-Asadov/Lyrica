@@ -55,4 +55,8 @@ def log_error(e: Exception, context: str = ""):
     Xətaları yığmaq üçün.
     """
     msg = f"{context}: {type(e).__name__} - {e}"
+<<<<<<< HEAD
     log_event("ERROR", msg)
+=======
+    log_event("ERROR", msg)
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

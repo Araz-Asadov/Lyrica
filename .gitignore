@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+# Python cache
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
 __pycache__/
 *.pyc
 
@@ -18,4 +22,8 @@ data/downloads/
 ffmpeg-8.0-essentials_build/
 
 # VSCode
+<<<<<<< HEAD
 .vscode/
+=======
+.vscode/
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

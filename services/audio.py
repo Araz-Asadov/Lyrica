@@ -98,4 +98,8 @@ def apply_effects(input_path: str, output_path: Optional[str], effects: Dict) ->
         print(f"❌ FFmpeg error: {e}")
         return input_path  # fallback
 
+<<<<<<< HEAD
     return output_path
+=======
+    return output_path
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

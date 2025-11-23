@@ -137,4 +137,8 @@ async def _mock_callback(m: Message):
         from_user = m.from_user
         message = m
         async def answer(self, *a, **kw): pass
+<<<<<<< HEAD
     return DummyCallback()
+=======
+    return DummyCallback()
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

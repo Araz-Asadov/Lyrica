@@ -67,4 +67,8 @@ async def main():
 if __name__ == "__main__":
     if not settings.BOT_TOKEN:
         raise SystemExit("❌ BOT_TOKEN .env faylında yoxdur!")
+<<<<<<< HEAD
     asyncio.run(main())
+=======
+    asyncio.run(main())
+>>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
