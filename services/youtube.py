@@ -23,19 +23,19 @@ def sanitize(name: str) -> str:
 
 
 # --------------------------------------------------
-#  🔥 SUPER FAST YDL OPTIMIZED SETTINGS
+#  🔥 SUPER OPTIMIZED SETTINGS — FIXED VERSION
 # --------------------------------------------------
 def _ydl_opts(template: str):
     return {
-        "format": "bestaudio[ext=webm]/bestaudio/best",
+        "format": "bestaudio/best",                     # FIXED
         "outtmpl": template,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "cachedir": False,
         "ignoreerrors": True,
-        "nopart": True,          # .part faylı yaratmasın
-        "concurrent_fragment_downloads": 3,  # 3x daha sürətli
+        "nopart": True,  
+        "concurrent_fragment_downloads": 3,
         "retries": 3,
         "fragment_retries": 3,
         "extract_flat": False,
@@ -43,7 +43,7 @@ def _ydl_opts(template: str):
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
-                "preferredquality": "4"  # 96-128kbps → həm sürətli, həm yaxşı keyfiyyət
+                "preferredquality": "192"               # FIXED
             }
         ],
     }
@@ -53,7 +53,16 @@ async def search_and_download(query: str) -> YTResult:
     ensure_ffmpeg()
     os.makedirs(settings.DOWNLOAD_DIR, exist_ok=True)
 
-    search_term = query if query.startswith("http") else f"ytsearch1:{query}"
+    # --------------------------------------------------
+    # TikTok / Instagram / YouTube link recognition
+    # --------------------------------------------------
+    if "tiktok.com" in query or "instagram.com" in query:
+        search_term = query  # link birbaşa işləyir
+    elif query.startswith("http"):
+        search_term = query
+    else:
+        search_term = f"ytsearch10:{query}"            # FIXED
+
     template = os.path.join(settings.DOWNLOAD_DIR, "%(id)s.%(ext)s")
 
     for attempt in range(3):
@@ -94,17 +103,11 @@ async def search_and_download(query: str) -> YTResult:
     )
 
 
-# --------------------------------------------------
-#  🔥 Async Extract Wrapper
-# --------------------------------------------------
 async def _async_extract(query: str, template: str):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _blocking_extract, query, template)
 
 
-# --------------------------------------------------
-#  🔥 Blocking Extract (thread)
-# --------------------------------------------------
 def _blocking_extract(query: str, template: str):
     opts = _ydl_opts(template)
     with yt_dlp.YoutubeDL(opts) as ydl:

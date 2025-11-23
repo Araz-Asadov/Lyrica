@@ -6,30 +6,24 @@ from sqlalchemy import select
 from db import SessionLocal
 from models import User, Song, Favorite
 from keyboards import song_actions
-from i18n import _load, t
+from i18n import t
 
 router = Router()
 
-# ============================================================
-# 🧩 Dil yükləyici
-# ============================================================
-def _lang(code: str):
-    return _load(code)
-
 
 # ============================================================
-# ℹ️ /help — kömək komandası
+# ℹ️ /help — kömək
 # ============================================================
 @router.message(Command("help"))
 async def cmd_help(m: Message):
-    await m.answer(
-        "📘 Kömək\n\n"
-        "/start – Başlat\n"
-        "/lang – Dil seçimi\n"
-        "/favorites – Sevimlilər\n"
-        "/help – Bu menyu\n\n"
-        "Sadəcə mahnının adını yaz və endir!"
-    )
+    async with SessionLocal() as s:
+        user = (
+            await s.execute(select(User).where(User.tg_id == m.from_user.id))
+        ).scalars().first()
+
+    lang = user.language if user else "az"
+
+    await m.answer(t(lang, "help_text"))
 
 
 # ============================================================
@@ -48,12 +42,10 @@ async def cmd_lang(m: Message):
 
 
 # ============================================================
-# 🎵 /favorites + “⭐ Sevimlilər”
+# ⭐ /favorites — sevimlilər
 # ============================================================
 @router.message(Command("favorites"))
-@router.message(F.text.in_(["⭐ Sevimlilər"]))
 async def show_favorites(m: Message):
-
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == m.from_user.id))
@@ -63,7 +55,7 @@ async def show_favorites(m: Message):
             await m.answer("⚠️ Zəhmət olmasa əvvəl /start yaz.")
             return
 
-        lang = user.language or "az"
+        lang = user.language
 
         fav_songs = (
             await s.execute(
@@ -75,7 +67,7 @@ async def show_favorites(m: Message):
         ).scalars().all()
 
     if not fav_songs:
-        await m.answer("⭐ Sevimlilərə heç nə əlavə olunmayıb.")
+        await m.answer(t(lang, "favorites_empty"))
         return
 
     btns = [
@@ -83,21 +75,20 @@ async def show_favorites(m: Message):
         for song in fav_songs
     ]
 
-    await m.answer("🎶 Sevimli mahnıların:", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+    await m.answer(t(lang, "favorites_list"), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
 
 
 # ============================================================
-# 🎵 Start menyusu → menu:favorites
+# ⭐ Menü → Sevimlilər
 # ============================================================
 @router.callback_query(F.data == "menu:favorites")
-async def menu_fav(c: CallbackQuery):
-
+async def menu_favorites(c: CallbackQuery):
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == c.from_user.id))
         ).scalars().first()
 
-        lang = user.language if user else "az"
+        lang = user.language
 
         fav_songs = (
             await s.execute(
@@ -109,7 +100,7 @@ async def menu_fav(c: CallbackQuery):
         ).scalars().all()
 
     if not fav_songs:
-        await c.message.answer("⭐ Sevimlilərdə mahnı yoxdur.")
+        await c.message.edit_text(t(lang, "favorites_empty"))
         await c.answer()
         return
 
@@ -118,12 +109,12 @@ async def menu_fav(c: CallbackQuery):
         for song in fav_songs
     ]
 
-    await c.message.edit_text("🎶 Sevimli mahnıların:", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+    await c.message.edit_text(t(lang, "favorites_list"), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
     await c.answer()
 
 
 # ============================================================
-# 🎧 Sevimlilər → mahnı seçildi
+# 🎧 Sevimlilər → Mahnı seçildi
 # ============================================================
 @router.callback_query(F.data.startswith("favopen:"))
 async def open_favorite_song(c: CallbackQuery):
@@ -142,10 +133,10 @@ async def open_favorite_song(c: CallbackQuery):
         await c.answer("⚠️ Mahnı tapılmadı.", show_alert=True)
         return
 
-    lang = user.language or "az"
+    lang = user.language
 
     await c.message.answer(
         f"🎧 {song.title}\n👤 {song.artist}",
-        reply_markup=song_actions(_lang(lang), song.youtube_id)
+        reply_markup=song_actions(lang, song.youtube_id)
     )
     await c.answer()
