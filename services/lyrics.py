@@ -2,8 +2,7 @@ import httpx
 import re
 from typing import Optional
 
-# 🧠 Cache
-lyrics_cache: dict[str, str] = {}
+from services.cache import lyrics_cache, lyrics_key
 
 
 # =====================================================
@@ -20,26 +19,64 @@ def clean_title(title: str) -> str:
 
 
 async def get_lyrics(title: str, artist: str = "") -> Optional[str]:
-    """
-    LRCLIB + YouTube Captions ilə super stabil söz tapma.
+    """LRCLIB + YouTube Captions ilə super stabil söz tapma.
+
+    SmartCache istifadə edir:
+    - Açar: lyrics:{title}:{artist}
+    - TTL: settings.CACHE_EXPIRATION_MINUTES əsasında.
     """
     original_title = title
     title = clean_title(title)  # 🔥 Təmizlənmiş ad
-    key = (title + artist).lower().strip()
+    key = lyrics_key(title, artist)
 
-    if key in lyrics_cache:
-        return lyrics_cache[key]
+    cached = lyrics_cache.get(key)
+    if cached is not None:
+        return cached
 
-    # 1️⃣ LRCLIB
+    # Paralel fetch - daha sürətli
+    import asyncio
+    try:
+        lrclib_task = asyncio.create_task(_lrclib_search(title, artist))
+        youtube_task = asyncio.create_task(_youtube_captions(original_title))
+        
+        # İlk nəticəni gözlə
+        done, pending = await asyncio.wait(
+            [lrclib_task, youtube_task],
+            return_when=asyncio.FIRST_COMPLETED,
+            timeout=5.0
+        )
+        
+        # Pending task-ləri ləğv et
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        
+        # Nəticəni götür
+        for task in done:
+            try:
+                lyrics = await task
+                if lyrics:
+                    lyrics_cache.set(key, lyrics)
+                    return lyrics
+            except Exception:
+                pass
+    except asyncio.TimeoutError:
+        pass
+    except Exception:
+        pass
+
+    # Fallback - tək-tək yoxla
     lyrics = await _lrclib_search(title, artist)
     if lyrics:
-        lyrics_cache[key] = lyrics
+        lyrics_cache.set(key, lyrics)
         return lyrics
 
-    # 2️⃣ YouTube captions
     lyrics = await _youtube_captions(original_title)
     if lyrics:
-        lyrics_cache[key] = lyrics
+        lyrics_cache.set(key, lyrics)
         return lyrics
 
     return None
@@ -50,7 +87,7 @@ async def get_lyrics(title: str, artist: str = "") -> Optional[str]:
 # =====================================================
 async def _lrclib_search(title: str, artist: str) -> Optional[str]:
     try:
-        async with httpx.AsyncClient(timeout=12) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(
                 "https://lrclib.net/api/search",
                 params={
@@ -83,7 +120,7 @@ async def _lrclib_search(title: str, artist: str) -> Optional[str]:
 # =====================================================
 async def _youtube_captions(title: str) -> Optional[str]:
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(
                 "https://yt.lemnoslife.com/search",
                 params={"q": title}
@@ -131,8 +168,4 @@ def _clean_xml(text: str) -> str:
     text = text.replace("&#39;", "'")
     text = text.replace("&quot;", '"')
     text = re.sub(r"\s{2,}", " ", text)
-<<<<<<< HEAD
     return text.strip()
-=======
-    return text.strip()
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

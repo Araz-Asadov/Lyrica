@@ -36,8 +36,22 @@ async def menu_admin(c: CallbackQuery):
             .all()
         )
 
+    from services.cache import get_cache_stats
+
+    cache_stats = get_cache_stats()
     top_songs = "\n".join([f"🎵 {s.title} ({s.play_count})" for s in pops]) or "—"
-    stats = f"📊 <b>Lyrica Bot Statistikası</b>\n\n👥 İstifadəçilər: {users}\n🎶 Mahnılar: {songs}\n🧾 Sorğular: {reqs}\n\n🔥 Ən çox dinlənənlər:\n{top_songs}"
+
+    stats = (
+        "📊 <b>Lyrica Bot Statistikası</b>\n\n"
+        f"👥 İstifadəçilər: {users}\n"
+        f"🎶 Mahnılar: {songs}\n"
+        f"🧾 Sorğular: {reqs}\n\n"
+        f"🔥 Ən çox dinlənənlər:\n{top_songs}\n\n"
+        f"🧠 Smart Cache:\n"
+        f" • Lyrics: {cache_stats['lyrics_hits']} hit / {cache_stats['lyrics_misses']} miss (size={cache_stats['lyrics_size']})\n"
+        f" • Translate: {cache_stats['translation_hits']} hit / {cache_stats['translation_misses']} miss (size={cache_stats['translation_size']})\n"
+        f" • Total: {cache_stats['total_hits']} hit / {cache_stats['total_misses']} miss"
+    )
 
     await c.message.answer(stats, parse_mode="HTML")
     await c.answer()
@@ -137,8 +151,4 @@ async def _mock_callback(m: Message):
         from_user = m.from_user
         message = m
         async def answer(self, *a, **kw): pass
-<<<<<<< HEAD
     return DummyCallback()
-=======
-    return DummyCallback()
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

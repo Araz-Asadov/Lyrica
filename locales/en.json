@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "start_message": "🎵 Welcome to LyricaBot!\n\nI'm your music assistant. With me you can:\n\n🎯 To find songs:\n• Type a song name\n• Send a YouTube link\n• Send a TikTok link\n• Send an Instagram/Reels link\n• Send a video or voice message\n\n🎼 Music notes:\n• Send /not and then send any music\n\n⭐ Favorites:\n• Add the songs you find to your favorites\n\nUse the buttons below or type /help:",
 
   "start_welcome": "Hello {name}! 🎵 Welcome to LyricaBot.",
@@ -7,8 +6,9 @@
 
   "btn_search": "🔍 Search",
   "btn_favorites": "⭐ Favorites",
-  "btn_lang": "🌐 Language",
+  "btn_playlists": "📻 Playlists",
   "btn_admin": "⚙️ Admin Panel",
+  "btn_lang": "🌐 Language",
 
   "prompt_search": "Send a song name, artist, TikTok/Instagram/YouTube link, or voice message.",
 
@@ -18,6 +18,7 @@
   "lyrics": "📝 Lyrics",
   "translate": "🌐 Translate",
   "favorite": "⭐ Add to Favorites",
+  "playlist": "➕ Add to playlist",
   "effects": "🎚️ Effects",
 
   "bass_plus6": "Bass +6dB",
@@ -30,60 +31,59 @@
   "speed_down": "Speed 0.9x",
 
   "choose_effect": "Choose an effect:",
+  "choose_playlist": "Choose a playlist:",
 
   "fav_empty": "⭐ Your favorites list is empty.",
   "fav_added": "⭐ Added to favorites.",
   "fav_removed": "❌ Removed from favorites.",
   "favorites_list": "🎶 Your favorite songs:",
 
-  "help_text": "📘 Help Menu\n\n/start — Restart the bot\n/lang — Change language\n/favorites — Your favorite songs\n/help — This help menu\n\nJust type a song name or send a YouTube/TikTok/Instagram link and I will find it! 🎵",
+  "pl_empty": "No playlists yet. Create with /newplaylist.",
+  "pl_created": "Playlist created: {name}",
+  "pl_added": "Added to playlist.",
 
-  "set_language": "🌍 Choose language:",
-  "lang_set": "Language changed to: {lang}",
-
-  "lyrics_not_found": "❌ Lyrics not found.",
-  "downloading": "⬇️ Downloading, please wait...",
-  "no_ffmpeg": "❌ FFmpeg not found. Please install it.",
-
+  "effects_applied": "Effects applied.",
   "admin_only": "⚠️ Admin access only.",
   "admin_stats": "📊 Stats:\n👤 Users: {users}\n🎵 Songs: {songs}\n🔎 Requests: {reqs}",
   "broadcast_started": "📢 Broadcast started.",
 
-  "voice_prompt": "🎙 Send a voice message (if Vosk is installed)."
-=======
-  "start_welcome": "Hello! 🎵 Welcome to LyricaBot.",
-  "start_menu": "Choose an option:",
-  "btn_search": "🔎 Search",
-  "btn_favorites": "⭐ Favorites",
-  "btn_playlists": "📻 Playlists",
-  "btn_admin": "🛠 Admin",
-  "btn_lang": "🌐 Language",
-  "prompt_search": "Send a song name, artist, or YouTube link.",
-  "search_result": "Found: <b>{title}</b>\nArtist: {artist}\n⏱ {duration}s",
+  "set_language": "🌍 Choose language:",
+  "lang_set": "Language changed to: {lang}",
+
+  "voice_prompt": "🎙 Send a voice message (if Vosk is installed).",
+  "lyrics_not_found": "❌ Lyrics not found.",
+  "downloading": "⬇️ Downloading, please wait...",
+  "applying_effect": "Applying effect, please wait...",
+  "no_ffmpeg": "❌ FFmpeg not found. Please install it.",
   
-  "download": "⬇️ Download",
-  "lyrics": "📝 Lyrics",
-  "favorite": "⭐ Add to favorites",
-  "playlist": "➕ Add to playlist",
-  "effects": "🎨 Effects",
-  "choose_effect": "Choose an effect:",
+  "recognition": {
+    "processing": "⏳ Extracting audio from {platform} link and recognizing music...",
+    "processing_video": "⏳ Extracting audio from video and recognizing music...",
+    "processing_voice": "⏳ Analyzing voice message and recognizing music...",
+    "recognizing": "🎵 Recognizing music...",
+    "searching_original": "🔍 Searching for original version on YouTube...",
+    "audio_extraction_failed": "❌ Audio extraction failed.",
+    "audio_conversion_failed": "❌ Audio conversion failed.",
+    "not_found": "❌ Could not recognize the song.",
+    "error": "❌ An error occurred.",
+    "tiktok_found": "🎵 Found from TikTok:\n<b>{title}</b>\n👤 {artist}\n🎯 Confidence: {confidence}",
+    "ig_found": "🎵 Found from Instagram Reels:\n<b>{title}</b>\n👤 {artist}\n🎯 Confidence: {confidence}",
+    "youtube_found": "🎵 Found from YouTube:\n<b>{title}</b>\n👤 {artist}\n🎯 Confidence: {confidence}",
+    "from_video": "🎵 Found from video:\n<b>{title}</b>\n👤 {artist}",
+    "from_voice": "🎵 Found from voice message:\n<b>{title}</b>\n👤 {artist}",
+    "song_info": "📋 Song information:"
+  },
   
-  "fav_empty": "No favorites yet.",
-  "fav_added": "Added to favorites.",
-  "fav_removed": "Removed from favorites.",
-  "pl_empty": "No playlists yet. Create with /newplaylist.",
-  "pl_created": "Playlist created: {name}",
-  "pl_added": "Added to playlist.",
-  "effects_applied": "Effects applied.",
-  "admin_only": "Admins only.",
-  "admin_stats": "Users: {users}\nSongs: {songs}\nRequests: {reqs}",
-  "broadcast_started": "Broadcast started.",
-  "set_language": "Choose language:",
-  "lang_set": "Language set to: {lang}",
-  "voice_prompt": "Send a voice message (optional: requires Vosk).",
-  "lyrics_not_found": "Lyrics not found.",
-  "downloading": "Downloading, please wait...",
-  "choose_playlist": "Choose a playlist:",
-  "no_ffmpeg": "FFmpeg not found, please add to PATH."
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
+  "notes": {
+    "title": "🎼 Music Notes and Chords",
+    "key": "🎹 Key: {key}",
+    "bpm": "⏱️ Tempo: {bpm} BPM",
+    "chords": "🎸 Chords: {chords}",
+    "notes": "🎵 Notes: {notes}",
+    "extracting": "⏳ Extracting notes and chords...",
+    "extraction_failed": "❌ Could not extract notes.",
+    "no_audio_source": "❌ No audio source found. Please reply to an audio, video, or voice message with /not.",
+    "usage": "📝 Usage: Reply to an audio, video, or voice message with /not.",
+    "error": "❌ An error occurred."
+  }
 }

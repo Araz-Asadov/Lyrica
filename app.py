@@ -4,12 +4,12 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+
 from config import settings
-from db import init_db
+from db import init_db, SessionLocal
 from handlers import setup_routers
 from models import User
 from sqlalchemy import select
-from db import SessionLocal
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -67,8 +67,4 @@ async def main():
 if __name__ == "__main__":
     if not settings.BOT_TOKEN:
         raise SystemExit("❌ BOT_TOKEN .env faylında yoxdur!")
-<<<<<<< HEAD
     asyncio.run(main())
-=======
-    asyncio.run(main())
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

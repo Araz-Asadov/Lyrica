@@ -1,11 +1,14 @@
 from aiogram import Dispatcher
-from . import start, search, favorites, playlists, admin, voice, commands
+from . import start, search, favorites, playlists, admin, voice, commands, links, recognition, notes
 
 
 def setup_routers(dp: Dispatcher):
     for r in (
         start.router,
-        search.router,
+        recognition.router,  # Recognition FIRST - TikTok/Instagram are more specific
+        links.router,  # YouTube links SECOND - more specific than general search
+        search.router,  # General search THIRD - catches all other text
+        notes.router,  # Notes extraction
         favorites.router,
         playlists.router,
         admin.router,
@@ -13,22 +16,3 @@ def setup_routers(dp: Dispatcher):
         commands.router,
     ):
         dp.include_router(r)
-from aiogram import Dispatcher
-from . import start, search, favorites, playlists, admin, voice, commands
-
-
-def setup_routers(dp: Dispatcher):
-    for r in (
-        start.router,
-        search.router,
-        favorites.router,
-        playlists.router,
-        admin.router,
-        voice.router,
-        commands.router,
-    ):
-<<<<<<< HEAD
-        dp.include_router(r)
-=======
-        dp.include_router(r)
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a

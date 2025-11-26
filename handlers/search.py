@@ -11,26 +11,210 @@ from db import SessionLocal
 from models import User, Song, Favorite, RequestLog
 from i18n import t
 from keyboards import song_actions, effects_menu
-from services.youtube import search_and_download, YTResult
+from services.search_service import get_search_service, SearchResult
 from services.lyrics import get_lyrics
 from services.audio import apply_effects
 from utils.common import has_ffmpeg
 from deep_translator import GoogleTranslator
-from datetime import datetime
+from datetime import datetime, timezone
 import os
+import logging
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 # 🔐 user+song əsaslı söz yaddaşı
-# açar: (telegram_id, youtube_id) -> lyrics
 user_lyrics_memory: dict[tuple[int, str], str] = {}
 
+# Initialize search service
+search_service = get_search_service()
 
 # =================================================================
-# 🔍 MAHNİ AXTARIŞI (Komanda olmayan bütün textlər üçün)
+# 🔍 UNIFIED SEARCH HANDLER
 # =================================================================
 @router.message(F.text & ~F.via_bot & ~F.text.startswith("/"))
 async def on_query(m: Message):
+    """
+    Unified search handler that processes:
+    - YouTube search queries
+    - YouTube/TikTok/Instagram links
+    - General music search terms
+    """
+    text = m.text.strip()
+    logger.info(f"[SEARCH] Processing query: {text[:100]}")
+    
+    # Get user language
+    async with SessionLocal() as session:
+        user = await session.get(User, m.from_user.id)
+        lang = user.language if user else 'az'
+    
+    # Show typing action
+    await m.bot.send_chat_action(m.chat.id, "typing")
+    
+    try:
+        # Process the query using our unified search service
+        results = await search_service.search_from_any_source(text)
+        
+        if not results:
+            await m.answer(t(lang, "no_results"))
+            return
+            
+        # If we have exactly one result, process it directly
+        if len(results) == 1:
+            await process_search_result(m, results[0], lang)
+            return
+            
+        # If we have multiple results, show them to the user
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+        for i, result in enumerate(results[:5], 1):  # Show max 5 results
+            title = f"{i}. {result.artist} - {result.title}" if result.artist else result.title
+            callback_data = f"search_select:{result.source}:{getattr(result, f'{result.source}_id', '')}"
+            keyboard.inline_keyboard.append([
+                InlineKeyboardButton(text=title[:64], callback_data=callback_data)
+            ])
+            
+        await m.answer("🔍 Aşağıdakı nəticələrdən birini seçin:", reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Search error: {e}", exc_info=True)
+        await m.answer(t(lang, "error_occurred"))
+
+async def process_search_result(m: Message, result: SearchResult, lang: str):
+    """Process a single search result and send it to the user"""
+    try:
+        # If we have a file path, send the audio
+        if result.file_path and os.path.exists(result.file_path):
+            audio = FSInputFile(result.file_path)
+            from i18n import _load as _lang
+            await m.answer_audio(
+                audio=audio,
+                title=result.title,
+                performer=result.artist,
+                reply_markup=song_actions(_lang(lang), result.youtube_id)
+            )
+        else:
+            # If no file path, download the song first
+            await m.answer(t(lang, "downloading"))
+            
+            try:
+                # Download the song
+                if result.source == 'youtube' and result.youtube_id:
+                    from services.youtube import search_and_download
+                    
+                    # Try to download using the search query or direct download
+                    search_query = f"{result.artist} {result.title}".strip()
+                    yt_result = await search_and_download(search_query)
+                    
+                    if yt_result and yt_result.file_path and os.path.exists(yt_result.file_path):
+                        # Save to database
+                        await save_song_to_db(yt_result, m.from_user.id, search_query)
+                        
+                        # Send the audio file
+                        from i18n import _load as _lang
+                        audio = FSInputFile(yt_result.file_path)
+                        await m.answer_audio(
+                            audio=audio,
+                            title=yt_result.title,
+                            performer=yt_result.artist,
+                            reply_markup=song_actions(_lang(lang), yt_result.youtube_id)
+                        )
+                    else:
+                        # If download failed, show info with download button
+                        from i18n import _load as _lang
+                        await m.answer(
+                            f"🎵 {result.artist} - {result.title}",
+                            reply_markup=song_actions(_lang(lang), result.youtube_id)
+                        )
+                else:
+                    # For non-YouTube sources, show info with download button
+                    from i18n import _load as _lang
+                    await m.answer(
+                        f"🎵 {result.artist} - {result.title}",
+                        reply_markup=song_actions(_lang(lang), result.youtube_id)
+                    )
+                    
+            except Exception as download_error:
+                logger.error(f"Failed to download song: {download_error}")
+                # Show info with download button as fallback
+                from i18n import _load as _lang
+                await m.answer(
+                    f"🎵 {result.artist} - {result.title}",
+                    reply_markup=song_actions(_lang(lang), result.youtube_id)
+                )
+            
+        # Log the request
+        await log_request(m, result)
+        
+    except Exception as e:
+        logger.error(f"Error processing search result: {e}", exc_info=True)
+        await m.answer(t(lang, "error_processing_media"))
+
+async def save_song_to_db(yt_result, user_id: int, query: str):
+    """Save downloaded song to database"""
+    try:
+        async with SessionLocal() as s:
+            # Check if song already exists
+            existing_song = (
+                await s.execute(select(Song).where(Song.youtube_id == yt_result.youtube_id))
+            ).scalars().first()
+            
+            if not existing_song:
+                song = Song(
+                    youtube_id=yt_result.youtube_id,
+                    title=yt_result.title,
+                    artist=yt_result.artist,
+                    duration=yt_result.duration,
+                    file_path=yt_result.file_path,
+                    thumbnail=yt_result.thumbnail,
+                )
+                s.add(song)
+                await s.commit()
+                await s.refresh(song)
+            else:
+                # Update file path if it was missing
+                if not existing_song.file_path and yt_result.file_path:
+                    existing_song.file_path = yt_result.file_path
+                    await s.commit()
+                song = existing_song
+            
+            # Log the request
+            user = await s.get(User, user_id)
+            if user:
+                s.add(
+                    RequestLog(
+                        user_id=user.id,
+                        query=query,
+                        via_voice=False,
+                        matched_song_id=song.id,
+                    )
+                )
+                await s.commit()
+                
+    except Exception as e:
+        logger.error(f"Failed to save song to database: {e}")
+
+async def log_request(m: Message, result: SearchResult):
+    """Log the user's request to the database"""
+    try:
+        async with SessionLocal() as session:
+            # Log the request
+            request = RequestLog(
+                user_id=m.from_user.id,
+                query=m.text,
+                source=result.source,
+                title=result.title,
+                artist=result.artist,
+                duration=result.duration,
+                created_at=datetime.now(timezone.utc)
+            )
+            session.add(request)
+            await session.commit()
+    except Exception as e:
+        logger.error(f"Error logging request: {e}")
+        # Don't fail the whole request if logging fails
+    
+    logger.info(f"[SEARCH] Processing search query")
+    
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == m.from_user.id))
@@ -42,51 +226,163 @@ async def on_query(m: Message):
         await m.answer(t(lang, "no_ffmpeg"))
         return
 
-    await m.answer(t(lang, "downloading"))
+    # Send searching message
+    search_msg = await m.answer("🔍 Axtarılır...")
 
     try:
-        # 🔹 Sürətli yükləmə üçün fast_mode istifadə oluna bilər
-        yt: YTResult = await search_and_download(m.text.strip())
-    except Exception:
-        await m.answer("❌ Axtarış/yükləmə zamanı xəta baş verdi.")
-        return
+        # Search for multiple results
+        results = await search_multiple(m.text.strip(), max_results=5)
+        
+        if not results:
+            await search_msg.edit_text("❌ Nəticə tapılmadı. Zəhmət olmasa başqa sorğu yazın.")
+            return
 
-    # DB-yə yaz
+        # Show results with inline keyboard
+        from i18n import _load as _lang
+        lang_texts = _lang(lang)
+        
+        results_text = f"🔍 <b>{len(results)} nəticə tapıldı:</b>\n\n"
+        keyboard_buttons = []
+        
+        for idx, result in enumerate(results, 1):
+            # Format duration as MM:SS
+            if result.duration > 0:
+                minutes = result.duration // 60
+                seconds = result.duration % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = "?"
+            
+            results_text += f"{idx}. <b>{result.title}</b>\n"
+            results_text += f"   👤 {result.artist} | ⏱ {duration_str}\n\n"
+            
+            # Add button for each result (truncate title if too long)
+            button_text = f"{idx}. {result.title[:35]}"
+            if len(result.title) > 35:
+                button_text += "..."
+            
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=f"search:select:{result.youtube_id}"
+                )
+            ])
+        
+        await search_msg.edit_text(
+            results_text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons),
+            parse_mode="HTML"
+        )
+        
+    except Exception as e:
+        logger.error(f"Search error: {e}", exc_info=True)
+        await search_msg.edit_text("❌ Axtarış zamanı xəta baş verdi.")
+
+
+# =================================================================
+# 🔍 SEARCH RESULT SELECTION
+# =================================================================
+@router.callback_query(F.data.startswith("search:select:"))
+async def on_search_select(c: CallbackQuery):
+    """Handle selection of a search result"""
+    await c.answer()
+    
+    yt_id = c.data.split(":")[-1]
+    
+    async with SessionLocal() as s:
+        user = (
+            await s.execute(select(User).where(User.tg_id == c.from_user.id))
+        ).scalars().first()
+    
+    lang = user.language if user and getattr(user, "language", None) else "az"
+    
+    # Check if song already exists in DB
     async with SessionLocal() as s:
         song = (
-            await s.execute(select(Song).where(Song.youtube_id == yt.youtube_id))
+            await s.execute(select(Song).where(Song.youtube_id == yt_id))
         ).scalars().first()
-
-        if not song:
-            song = Song(
-                youtube_id=yt.youtube_id,
-                title=yt.title,
-                artist=yt.artist,
-                duration=yt.duration,
-                file_path=yt.file_path,
-                thumbnail=yt.thumbnail,
+    
+    if not song:
+        # Download the selected song
+        await c.message.answer(t(lang, "downloading"))
+        
+        try:
+            from services.youtube import download_from_url
+            yt_url = f"https://www.youtube.com/watch?v={yt_id}"
+            yt_result = await download_from_url(yt_url)
+            
+            # Save to database
+            async with SessionLocal() as s:
+                # Check if song already exists
+                existing_song = (
+                    await s.execute(select(Song).where(Song.youtube_id == yt_result.youtube_id))
+                ).scalars().first()
+                
+                if existing_song:
+                    song = existing_song
+                    # Update file path if it was missing
+                    if not existing_song.file_path and yt_result.file_path:
+                        existing_song.file_path = yt_result.file_path
+                        await s.commit()
+                else:
+                    song = Song(
+                        youtube_id=yt_result.youtube_id,
+                        title=yt_result.title,
+                        artist=yt_result.artist,
+                        duration=yt_result.duration,
+                        file_path=yt_result.file_path,
+                        thumbnail=yt_result.thumbnail,
+                    )
+                    s.add(song)
+                    await s.commit()
+                    await s.refresh(song)
+                
+                # Log request
+                if user:
+                    s.add(
+                        RequestLog(
+                            user_id=user.id,
+                            query=yt_result.title,
+                            via_voice=False,
+                            matched_song_id=song.id,
+                        )
+                    )
+                    await s.commit()
+            
+            # Send result
+            from i18n import _load as _lang
+            result_text = t(
+                lang,
+                "search_result",
+                title=yt_result.title,
+                artist=yt_result.artist,
+                duration=yt_result.duration,
             )
-            s.add(song)
-            await s.commit()
-
-        s.add(
-            RequestLog(
-                user_id=(user.id if user else None),
-                query=m.text.strip(),
-                via_voice=False,
-                matched_song_id=song.id,
+            
+            await c.message.answer(result_text)
+            await c.message.answer(
+                t(lang, "recognition.song_info"),
+                reply_markup=song_actions(_lang(lang), song.youtube_id)
             )
+        except Exception as e:
+            logger.error(f"Error downloading selected song: {e}", exc_info=True)
+            await c.message.answer("❌ Mahnı yüklənə bilmədi.")
+    else:
+        # Song already exists, just show it
+        from i18n import _load as _lang
+        result_text = t(
+            lang,
+            "search_result",
+            title=song.title,
+            artist=song.artist,
+            duration=song.duration,
         )
-        await s.commit()
-
-    msg = t(
-        lang,
-        "search_result",
-        title=yt.title,
-        artist=yt.artist,
-        duration=yt.duration,
-    )
-    await m.answer(msg, reply_markup=socket_song_actions(lang, yt.youtube_id))
+        
+        await c.message.answer(result_text)
+        await c.message.answer(
+            t(lang, "recognition.song_info"),
+            reply_markup=song_actions(_lang(lang), song.youtube_id)
+        )
 
 
 # =================================================================
@@ -94,6 +390,9 @@ async def on_query(m: Message):
 # =================================================================
 @router.callback_query(F.data.startswith("song:dl:"))
 async def on_download(c: CallbackQuery):
+    # Immediately answer the callback query to prevent timeout
+    await c.answer()
+
     yt_id = c.data.split(":")[-1]
 
     async with SessionLocal() as s:
@@ -103,20 +402,61 @@ async def on_download(c: CallbackQuery):
 
         if song:
             song.play_count += 1
-            song.last_played = datetime.utcnow()
+            song.last_played = datetime.now(timezone.utc)
             await s.commit()
 
     if not song:
-        await c.answer("Song not found", show_alert=True)
+        await c.message.answer("Song not found")
+        return
+
+    # Inform the user if the file needs to be downloaded
+    if not song.file_path or not os.path.exists(song.file_path):
+        await c.message.answer("⏳ Fayl yüklənir...")
+        
+        try:
+            from services.youtube import download_from_url, search_and_download
+            
+            # If it's a YouTube ID, try to download
+            if song.youtube_id and len(song.youtube_id) == 11 and not song.youtube_id.startswith(("tiktok_", "instagram_", "rec_")):
+                yt_url = f"https://www.youtube.com/watch?v={song.youtube_id}"
+                yt_result = await download_from_url(yt_url)
+                song.file_path = yt_result.file_path
+            else:
+                search_query = f"{song.artist} {song.title}"
+                yt_result = await search_and_download(search_query)
+                song.file_path = yt_result.file_path
+                song.youtube_id = yt_result.youtube_id
+            
+            # Update database
+            async with SessionLocal() as s:
+                db_song = (await s.execute(select(Song).where(Song.id == song.id))).scalars().first()
+                if db_song:
+                    db_song.file_path = song.file_path
+                    db_song.youtube_id = song.youtube_id
+                    await s.commit()
+
+        except Exception as download_error:
+            logger.error(f"Failed to download song: {download_error}")
+            await c.message.answer("❌ Mahnı yüklənə bilmədi. Zəhmət olmasa yenidən cəhd edin.")
+            return
+
+    # Check file again
+    if not os.path.exists(song.file_path):
+        await c.message.answer("❌ Fayl tapılmadı.")
         return
 
     try:
-        file = FSInputFile(song.file_path, filename=f"{song.title}.mp3")
+        # Check file size (Telegram limit is 50MB)
+        file_size = os.path.getsize(song.file_path)
+        if file_size > 50 * 1024 * 1024:  # 50MB
+            await c.message.answer("❌ Fayl çox böyükdür (50MB limit).")
+            return
+        
+        file = FSInputFile(song.file_path, filename=f"{song.title[:50]}.mp3")
         await c.message.answer_document(file)
     except Exception as e:
-        await c.message.answer(f"❌ Göndərmə xətası: {e}")
-
-    await c.answer()
+        logger.error(f"Error sending file: {e}", exc_info=True)
+        await c.message.answer(f"❌ Göndərmə xətası: {str(e)[:100]}")
 
 
 # =================================================================
@@ -124,6 +464,8 @@ async def on_download(c: CallbackQuery):
 # =================================================================
 @router.callback_query(F.data.startswith("song:ly:"))
 async def on_lyrics(c: CallbackQuery):
+    await c.answer()  # Dərhal callback cavabı ver
+
     yt_id = c.data.split(":")[-1]
 
     async with SessionLocal() as s:
@@ -137,22 +479,27 @@ async def on_lyrics(c: CallbackQuery):
     lang = user.language if user and getattr(user, "language", None) else "az"
 
     if not song:
-        await c.answer("Song not found", show_alert=True)
+        await c.message.answer("❌ Mahnı tapılmadı.")
         return
 
-    lyrics = await get_lyrics(song.title, song.artist)
+    # Loading mesajı
+    loading_msg = await c.message.answer("⏳ Sözlər axtarılır...")
 
-    if lyrics:
-        user_lyrics_memory[(c.from_user.id, yt_id)] = lyrics
-        await c.message.answer(lyrics)
-        await c.message.answer(
-            "🔁 Tərcümə etmək üçün:",
-            reply_markup=_translate_button(yt_id),
-        )
-    else:
-        await c.message.answer(t(lang, "lyrics_not_found"))
+    try:
+        lyrics = await get_lyrics(song.title, song.artist)
 
-    await c.answer()
+        if lyrics:
+            user_lyrics_memory[(c.from_user.id, yt_id)] = lyrics
+            await loading_msg.delete()
+            await c.message.answer(lyrics)
+            await c.message.answer(
+                "🔁 Tərcümə etmək üçün:",
+                reply_markup=_translate_button(yt_id),
+            )
+        else:
+            await loading_msg.edit_text(t(lang, "lyrics_not_found"))
+    except Exception as e:
+        await loading_msg.edit_text(f"❌ Xəta: {e}")
 
 
 # =================================================================
@@ -163,7 +510,6 @@ async def on_translate(c: CallbackQuery):
     yt_id = c.data.split(":")[-1]
     text = user_lyrics_memory.get((c.from_user.id, yt_id))
 
-    # İstifadəçi dilini götürək
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == c.from_user.id))
@@ -172,7 +518,6 @@ async def on_translate(c: CallbackQuery):
 
     if not text:
         await c.message.answer("❗ Əvvəl sözləri aç (Sözlər düyməsi).")
-        await c.answer()
         return
 
     await c.message.answer("🔄 Tərcümə olunur...")
@@ -218,11 +563,11 @@ async def on_fav(c: CallbackQuery):
         if existing:
             await s.delete(existing)
             await s.commit()
-            await c.answer(_lang(user.language)["fav_removed"])
+            await c.answer(_lang(user.language).get("fav_removed", "❌ Silindi"))
         else:
             s.add(Favorite(user_id=user.id, song_id=song.id))
             await s.commit()
-            await c.answer(_lang(user.language)["fav_added"])
+            await c.answer(_lang(user.language).get("fav_added", "⭐ Əlavə edildi"))
 
 
 # =================================================================
@@ -230,7 +575,7 @@ async def on_fav(c: CallbackQuery):
 # =================================================================
 @router.callback_query(F.data.startswith("song:fx:"))
 async def on_effects_menu(c: CallbackQuery):
-    # İstifadəçi dilini götürüb, çoxdilli efekt menyusu açaq
+    yt_id = c.data.split(":")[-1]
     async with SessionLocal() as s:
         user = (
             await s.execute(select(User).where(User.tg_id == c.from_user.id))
@@ -239,7 +584,7 @@ async def on_effects_menu(c: CallbackQuery):
 
     await c.message.answer(
         t(lang, "choose_effect"),
-        reply_markup=effects_menu(_lang(lang)),
+        reply_markup=effects_menu(_lang(lang), yt_id),
     )
     await c.answer()
 
@@ -249,27 +594,42 @@ async def on_effects_menu(c: CallbackQuery):
 # =================================================================
 @router.callback_query(F.data.startswith("fx:"))
 async def on_effect_apply(c: CallbackQuery):
+    await c.answer()
+
     parts = c.data.split(":")
     kind, val = parts[1], parts[2]
+    
+    # Extract yt_id from callback data if present (format: fx:kind:val:yt_id)
+    yt_id = None
+    if len(parts) > 3:
+        yt_id = parts[3]
 
     async with SessionLocal() as s:
-        song = (
-            await s.execute(select(Song).order_by(Song.last_played.desc()))
-        ).scalars().first()
         user = (
             await s.execute(select(User).where(User.tg_id == c.from_user.id))
         ).scalars().first()
+        
+        # Try to get song by yt_id first, fallback to last played
+        if yt_id:
+            song = (
+                await s.execute(select(Song).where(Song.youtube_id == yt_id))
+            ).scalars().first()
+        else:
+            song = (
+                await s.execute(select(Song).order_by(Song.last_played.desc()))
+            ).scalars().first()
 
     lang = user.language if user and getattr(user, "language", None) else "az"
 
     if not song:
-        await c.answer("No context song", show_alert=True)
+        await c.message.answer("No context song", show_alert=True)
         return
 
     if not has_ffmpeg():
         await c.message.answer(t(lang, "no_ffmpeg"))
-        await c.answer()
         return
+
+    await c.message.answer(t(lang, "applying_effect"))
 
     effects: dict = {}
 
@@ -286,22 +646,18 @@ async def on_effect_apply(c: CallbackQuery):
     if kind == "speed":
         effects["speed"] = float(val)
 
-    # ⚠️ DIQQƏT: Option B – apply_effects özü unikal fayl yaradır və yol qaytarır
     try:
         new_path = apply_effects(song.file_path, None, effects)
     except Exception as e:
         await c.message.answer(f"❌ Effekt tətbiq xətası: {e}")
-        await c.answer()
         return
 
     if not os.path.exists(new_path):
         await c.message.answer("❌ Effekt faylı yaradılmadı.")
-        await c.answer()
         return
 
     file = FSInputFile(new_path, filename=os.path.basename(new_path))
     await c.message.answer_document(file)
-    await c.answer()
 
 
 # =================================================================
@@ -328,10 +684,3 @@ def _lang(code: str) -> dict:
     return _load(code)
 
 
-def socket_song_actions(lang_code: str, yt_id: str):
-    """song_actions üçün helper — birbaşa lang_code verib dict yükləyirik."""
-<<<<<<< HEAD
-    return song_actions(_lang(lang_code), yt_id)
-=======
-    return song_actions(_lang(lang_code), yt_id)
->>>>>>> c534cb30237cc1881397949d2f3e9d910c1a269a
